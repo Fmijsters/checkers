@@ -4,8 +4,26 @@ from matplotlib import pyplot as plt
 import random
 import math
 import decimal
+import rl
+from keras.models import Sequential
+from keras import layers
+import keras
+from keras.optimizers import Adam
 
-def generate_grid(size):
+from collections import deque
+
+def create_model(grid_size):
+	inputs = layers.Input(shape=(8, 8, 1))
+	# Convolutions on the frames on the screen
+	layer1 = layers.Conv2D(32,1,strides=4, activation="relu")(inputs)
+	layer2 = layers.Conv2D(64,1, strides=2, activation="relu")(layer1)
+	layer3 = layers.Conv2D(64,1, strides=1, activation="relu")(layer2)
+	layer4 = layers.Flatten()(layer3)
+	layer5 = layers.Dense(512, activation="relu")(layer4)
+	action = layers.Dense(1, activation="linear")(layer5)
+	return keras.Model(inputs=inputs, outputs=action)
+
+def generate_grid(size): 
 	return [
 	[0,1,0,1,0,1,0,1],
 	[1,0,1,0,1,0,1,0],
@@ -16,25 +34,6 @@ def generate_grid(size):
 	[0,-1,0,-1,0,-1,0,-1],
 	[-1,0,-1,0,-1,0,-1,0]]
 
-	# return [
-	# [0, 0,0, 0,0, 0,0,0],
-	# [0, 0,0, 0,0, 0,0,0],
-	# [0, 0,0, 0,0, 0,0,0],
-	# [0, 0,0, 0,0, 0,0,0],
-	# [0, 0,0, 0,0,-1,0,0],
-	# [0, 0,-1, 0,0, 0,0,0],
-	# [0, 0,0, 0,0,-1,0,0],
-	# [0, 0,0, 0,0, 0,0,0]]
-	# return [
-	# [0, 0,0, 0,0, 0,0,0],
-	# [0, 0,0, 0,0, 0,0,0],
-	# [0, 0,0, 0,0, 0,0,0],
-	# [0, 0,0, 0,2, 0,0,0],
-	# [0, -1,0,0,0,-1,0,0],
-	# [0, 0,0, 0,0, 0,0,0],
-	# [0, 0,0, 0,0,-1,0,0],
-	# [0, 0,0, 0,0, 0,0,0]]
-
 def check_for_possible_king(grid):
 	global TURN
 	for i in range(len(grid[0])):
@@ -43,7 +42,6 @@ def check_for_possible_king(grid):
 		if grid[-1][i] == 1:
 			grid[-1][i] *= 2
 	return grid
-
 
 def show_grid(grid,graphics=False):
 	if not graphics:
@@ -99,11 +97,11 @@ def can_capture_king(grid,loc,path,final_path,cmap,taken_stones):
 	return could_capture
 	
 def paths(d, _start, _current = []):
-  if _current:
-    yield _current
-  for i in d[(_start[0],_start[1])]:
-     if i not in _current:
-        yield from paths(d, i, _current+[i])
+	if _current:
+		yield _current
+	for i in d[(_start[0],_start[1])]:
+		if i not in _current:
+			yield from paths(d, i, _current+[i])
 
 def get_move_for_stone(grid,r,c):
 	global TURN
@@ -151,7 +149,7 @@ def get_move_for_king(grid,r,c):
 			captures = _path
 	else:
 		for i in range(len(grid)):
-			#				 DR     UR     DL      UL
+			#				 DR	 UR	 DL	  UL
 			for ver,hor in [[1,1],[-1,1],[1,-1],[-1,-1]]:
 				new_r = r+ (ver*i)
 				new_c = c+ (hor*i)
@@ -219,7 +217,7 @@ def make_capture(grid,stone,destination,visualize):
 		#rechts onder
 		if x2>x1 and y2>y1:
 			middle_stone = [destination[0]-1,destination[1]-1]
-	    #links onder
+		#links onder
 		if x2<x1 and y2>y1:
 			middle_stone = [destination[0]+1,destination[1]-1]
 		#rechts boven
@@ -269,14 +267,15 @@ def calculate_winner(grid):
 		return 0
 	return winner
 
-
-
 def main():
 	pos = 0
 	neg = 0
 	draw = 0
-	for i in range(1000):
-		# show_grid(grid,graphics=True)
+	rounds = 1000
+	model = create_model((8,8))
+	model_target = create_model((8,8))
+
+	for i in range(rounds):
 		grid = generate_grid(10)
 		grid= play_rounds(1000,grid,visualize=False)
 		winner = calculate_winner(grid)
@@ -286,8 +285,17 @@ def main():
 			draw += 1
 		else:
 			neg += 1
+		plt.bar([1,2,3],[pos,draw,neg],tick_label=['1','DRAW','-1'])
+		for index, value in enumerate([pos,draw,neg]):
+			plt.text(x=index+1, y=value, s=str(value))
+		plt.ylim(0,round(rounds*0.75))
+		plt.draw()
+		plt.pause(0.01)
+		plt.clf()
 	print('1:',pos,'draw:',draw,'-1:',neg)
-	# show_grid(grid,graphics=True)
+	plt.show()
+
+
 
 if __name__=='__main__':
 	main()
